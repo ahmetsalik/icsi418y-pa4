@@ -20,13 +20,24 @@ function Backlog() {
     const [projectId, setProjectId] = useState("");
     const [members, setMembers] = useState([]);
     const [stories, setStories] = useState([]);
+
+    // Messages: one for the create form, one for the backlog (edit/delete)
     const [message, setMessage] = useState("");
+    const [backlogMessage, setBacklogMessage] = useState("");
 
     // Create form
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [priority, setPriority] = useState("");
     const [assignedId, setAssignedId] = useState("");
+
+    // Edit form (separate from the saved story until Save is clicked)
+    const [editingId, setEditingId] = useState("");
+    const [editTitle, setEditTitle] = useState("");
+    const [editDescription, setEditDescription] = useState("");
+    const [editPriority, setEditPriority] = useState("");
+    const [editStatus, setEditStatus] = useState("");
+    const [editAssignedId, setEditAssignedId] = useState("");
 
     // Load all projects once
     useEffect(() => {
@@ -62,7 +73,7 @@ function Backlog() {
                 }
             } catch (error) {
                 if (!ignore) {
-                    setMessage(error.message);
+                    setBacklogMessage(error.message);
                 }
             }
         }
@@ -79,7 +90,7 @@ function Backlog() {
             const data = await getJson(`${API}/projects/${projectId}/stories`);
             setStories(data);
         } catch (error) {
-            setMessage(error.message);
+            setBacklogMessage(error.message);
         }
     }
 
@@ -95,8 +106,12 @@ function Backlog() {
         setMembers([]);
         setStories([]);
         setMessage("");
+        setBacklogMessage("");
         clearCreateForm();
+        setEditingId("");
     }
+
+    // ---------- Create ----------
 
     async function handleCreate(event) {
         event.preventDefault();
@@ -139,6 +154,107 @@ function Backlog() {
             setMessage("Could not connect to server");
         }
     }
+
+    // ---------- Edit ----------
+
+    // Load the story's saved values into the edit form
+    function startEdit(story) {
+        setEditingId(story._id);
+        setEditTitle(story.title);
+        setEditDescription(story.description);
+        setEditPriority(story.priority);
+        setEditStatus(story.status);
+        setEditAssignedId(story.assigned_user_id ? story.assigned_user_id : "");
+        setBacklogMessage("");
+    }
+
+    // Cancel closes the form without sending anything
+    function cancelEdit() {
+        setEditingId("");
+        setBacklogMessage("");
+    }
+
+    async function handleSave(event) {
+        event.preventDefault();
+
+        if (editTitle.trim() === "" || editDescription.trim() === "") {
+            setBacklogMessage("Title and description are required");
+            return;
+        }
+
+        try {
+            const response = await fetch(
+                `${API}/projects/${projectId}/stories/${editingId}`,
+                {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        title: editTitle,
+                        description: editDescription,
+                        priority: editPriority,
+                        status: editStatus,
+                        assigned_user_id: editAssignedId === "" ? null : editAssignedId
+                    })
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                setBacklogMessage(data.message || "Could not update story");
+                return;
+            }
+
+            setBacklogMessage(data.message);
+            setEditingId("");
+            refreshStories();
+        } catch (error) {
+            setBacklogMessage("Could not connect to server");
+        }
+    }
+
+    // ---------- Delete ----------
+
+    async function handleDelete(story) {
+        const confirmed = window.confirm(`Delete the story "${story.title}"?`);
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            const response = await fetch(
+                `${API}/projects/${projectId}/stories/${story._id}`,
+                { method: "DELETE" }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                setBacklogMessage(data.message || "Could not delete story");
+                return;
+            }
+
+            if (editingId === story._id) {
+                setEditingId("");
+            }
+
+            setBacklogMessage(data.message);
+            refreshStories();
+        } catch (error) {
+            setBacklogMessage("Could not connect to server");
+        }
+    }
+
+    // Member dropdown options (used by both forms)
+    const memberOptions = members.map((member) => (
+        <option key={member._id} value={member._id}>
+            {member.username}
+            {member.isLead && " (Project Lead)"}
+        </option>
+    ));
 
     return (
         <div>
@@ -188,12 +304,7 @@ function Backlog() {
                             onChange={(event) => setAssignedId(event.target.value)}
                         >
                             <option value="">Unassigned</option>
-                            {members.map((member) => (
-                                <option key={member._id} value={member._id}>
-                                    {member.username}
-                                    {member.isLead && " (Project Lead)"}
-                                </option>
-                            ))}
+                            {memberOptions}
                         </select>
 
                         <button type="submit">Create Story</button>
@@ -203,17 +314,74 @@ function Backlog() {
 
                     <h3>Backlog</h3>
 
+                    {backlogMessage && <p>{backlogMessage}</p>}
+
                     {stories.length === 0 && <p>This project has no stories yet.</p>}
 
                     {stories.map((story) => (
                         <div key={story._id} className="story-item">
-                            <h4>{story.title}</h4>
-                            <p>{story.description}</p>
-                            <p>
-                                <strong>Priority:</strong> {story.priority} |{" "}
-                                <strong>Status:</strong> {story.status} |{" "}
-                                <strong>Assigned:</strong> {story.assigned_username}
-                            </p>
+                            {editingId === story._id ? (
+                                <form onSubmit={handleSave}>
+                                    <input
+                                        type="text"
+                                        value={editTitle}
+                                        onChange={(event) => setEditTitle(event.target.value)}
+                                    />
+
+                                    <textarea
+                                        value={editDescription}
+                                        onChange={(event) => setEditDescription(event.target.value)}
+                                    />
+
+                                    <select
+                                        value={editPriority}
+                                        onChange={(event) => setEditPriority(event.target.value)}
+                                    >
+                                        <option value="High">High</option>
+                                        <option value="Medium">Medium</option>
+                                        <option value="Low">Low</option>
+                                    </select>
+
+                                    <select
+                                        value={editStatus}
+                                        onChange={(event) => setEditStatus(event.target.value)}
+                                    >
+                                        <option value="To Do">To Do</option>
+                                        <option value="In Progress">In Progress</option>
+                                        <option value="Done">Done</option>
+                                    </select>
+
+                                    <select
+                                        value={editAssignedId}
+                                        onChange={(event) => setEditAssignedId(event.target.value)}
+                                    >
+                                        <option value="">Unassigned</option>
+                                        {memberOptions}
+                                    </select>
+
+                                    <div className="story-buttons">
+                                        <button type="submit">Save</button>
+                                        <button type="button" onClick={cancelEdit}>
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </form>
+                            ) : (
+                                <>
+                                    <h4>{story.title}</h4>
+                                    <p>{story.description}</p>
+                                    <p>
+                                        <strong>Priority:</strong> {story.priority} |{" "}
+                                        <strong>Status:</strong> {story.status} |{" "}
+                                        <strong>Assigned:</strong> {story.assigned_username}
+                                    </p>
+
+                                    <div className="story-buttons">
+                                        <button onClick={() => startEdit(story)}>Edit</button>
+                                        <button onClick={() => handleDelete(story)}>Delete</button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     ))}
                 </>
