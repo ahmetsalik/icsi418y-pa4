@@ -1,5 +1,5 @@
 .container {
-    width: 400px;
+    width: 700px;
     max-width: 90%;
     margin: 60px auto;
     text-align: center;
@@ -28,7 +28,9 @@ form {
     gap: 12px;
 }
 
-input {
+input,
+textarea,
+select {
     padding: 10px;
     font-size: 16px;
     background-color: #1a1a1a;
@@ -36,7 +38,13 @@ input {
     border: 1px solid #555;
 }
 
-input::placeholder {
+textarea {
+    min-height: 70px;
+    font-family: Arial, sans-serif;
+}
+
+input::placeholder,
+textarea::placeholder {
     color: #aaa;
 }
 
@@ -56,4 +64,22 @@ button:hover {
 p {
     margin-top: 15px;
     color: white;
+}
+
+/* PA4: backlog stories */
+.story-item {
+    text-align: left;
+    padding: 12px;
+    margin-top: 12px;
+    border: 1px solid #444;
+    border-radius: 6px;
+    background-color: #1a1a1a;
+}
+
+.story-item h4 {
+    margin: 0 0 6px 0;
+}
+
+.story-item p {
+    margin: 6px 0;
 }
